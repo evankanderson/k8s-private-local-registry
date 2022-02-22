@@ -1,0 +1,105 @@
+# NOTE:
+#
+# * This assumes a Secret named `registry-cert` with a key named `ca.crt` containing the PUBLIC CERTIFICATE for the registry CA.
+#   * We are using cert-manager to generate a selfsigned cert, which creates a backnig Secret with a `ca.crt` field along with the other cert/key fields.
+# * This assumes your registry is named "local.registry.svc". If you want to be able to use other names, you'll need to edit this and the Ingress definition.
+#
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: populate-registry-ca
+  namespace: registry
+spec:
+  selector:
+    matchLabels:
+      app: populate-registry-ca
+  template:
+    metadata:
+      labels:
+        app: populate-registry-ca
+    spec:
+      initContainers:
+      - name: copy-docker-cert
+        image: debian
+        args:
+          - bash
+          - "-c"
+          - |
+            cp -f /cert/ca.crt /docker-cert/ca.crt
+            cp -f /cert/ca.crt /crio-cert/ca.crt
+            if ! [ -f /etc/containerd/config.toml ]; then
+              exit 0;  # No containerd
+            fi
+            if grep config_path /etc/containerd/config.toml >/dev/null; then
+              exit 0;  # Already have config_path
+            fi
+            
+            # If we already have registry settings, we can't use config_path
+            if grep '\[.*\.registry.*\]' /etc/containerd/config.toml; then
+              if ! fgrep '"local.registry.svc".tls' /etc/containerd/config.toml; then
+                cat <<EOF >> /etc/containerd/config.toml
+            [plugins."io.containerd.grpc.v1.cri".registry.configs."local.registry.svc".tls]
+            ca_file   = "/etc/docker/certs.d/local.registry.svc/ca.crt"
+            EOF
+              else
+                exit 0  # Don't need to update config
+              fi
+            # We'd like to do this, but we'd need to find containerd on the host...
+            # TODO: we can use `crictl version` and extract the "Runtime Version" field for this.
+            # # `config_path` was introduced in containerd 1.5
+            # else if containerd --version | fgrep v1.5; then
+            #    cat <<EOF >> /etc/containerd/config.toml
+            #[plugins."io.containerd.grpc.v1.cri".registry]
+            #config_path = "/etc/containerd/certs.d:/etc/docker/certs.d"
+            #EOF
+            # Fall back to the registry method
+            else
+              cat <<EOF >> /etc/containerd/config.toml
+            [plugins."io.containerd.grpc.v1.cri".registry.configs."local.registry.svc".tls]
+            ca_file   = "/etc/docker/certs.d/local.registry.svc/ca.crt"
+            EOF
+            #  fi
+            fi
+            # We need to restart containerd after changing config.toml
+            nsenter --mount=/proc/1/ns/mnt -- systemctl restart containerd
+            nsenter --mount=/proc/1/ns/mnt -- systemctl status containerd
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /cert
+          name: ca-cert
+        - mountPath: /docker-cert
+          name: docker-certs
+        - mountPath: /crio-cert
+          name: crio-certs
+        - mountPath: /etc/containerd
+          name: containerd-config
+      containers:
+      - image: bash:4.4
+        name: sleep  # Avoid rescheduling often, but restart periodically to allow new certs to be picked up.
+        args:
+          - sleep
+          - "21600"  # 6 hours
+      nodeSelector:
+        kubernetes.io/os: linux
+      restartPolicy: Always
+      securityContext:
+        runAsUser: 0  # Need to be able to write to base OS root filesystem
+      hostPID: true
+      hostNetwork: true
+      volumes:
+      - name: ca-cert
+        secret:
+          secretName: registry-cert
+      - name: docker-certs
+        hostPath:
+          path: /etc/docker/certs.d/local.registry.svc
+          type: DirectoryOrCreate
+      - name: crio-certs
+        hostPath:
+          path: /etc/containers/certs.d
+          type: DirectoryOrCreate
+      - name: containerd-config
+        hostPath:
+          path: /etc/containerd/
+          type: DirectoryOrCreate
