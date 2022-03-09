@@ -24,7 +24,7 @@ spec:
         release: local
       annotations:
         checksum/config: 042402c17f5d8f8d60d32ad22af536e82d105e0e5d4308c9ef50209c470e806a
-        checksum/secret: 6c89a38f8a3647af0eb3bb837c187ee7ba6e01399bd4424bb81ea2ca85d32006
+        checksum/secret: f59099c9f6472745284c697fe149a64d83bc86c869ec355ccd1c388b681c234c
     spec:
       securityContext:
         fsGroup: 1000
@@ -41,12 +41,10 @@ spec:
             - containerPort: 5000
           livenessProbe:
             httpGet:
-              scheme: HTTPS
               path: /
               port: 5000
           readinessProbe:
             httpGet:
-              scheme: HTTPS
               path: /
               port: 5000
           resources:
@@ -57,10 +55,6 @@ spec:
                 secretKeyRef:
                   name: local-secret
                   key: haSharedSecret
-            - name: REGISTRY_HTTP_TLS_CERTIFICATE
-              value: /etc/ssl/docker/tls.crt
-            - name: REGISTRY_HTTP_TLS_KEY
-              value: /etc/ssl/docker/tls.key
             - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
               value: "/var/lib/registry"
           volumeMounts:
@@ -68,9 +62,6 @@ spec:
               mountPath: /var/lib/registry/
             - name: "local-config"
               mountPath: "/etc/docker/registry"
-            - mountPath: /etc/ssl/docker
-              name: tls-cert
-              readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -78,6 +69,3 @@ spec:
         - name: local-config
           configMap:
             name: local-config
-        - name: tls-cert
-          secret:
-            secretName: registry-cert

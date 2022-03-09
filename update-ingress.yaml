@@ -1,0 +1,54 @@
+# We need to declare a role and rolebinding to allow the job to update the ingress
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: registry
+  name: update-ingress
+rules:
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get","patch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: registry
+  name: default-update-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: update-ingress
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: registry
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: registry
+  name: ingress-update
+spec:
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 2
+  template:
+    spec:
+      containers:
+      - name: update-ingress
+        image: bitnami/kubectl
+        command: ["/bin/bash"]
+        args:
+          - "-c"
+          - |
+            IP=""
+            while [ -z "$IP" ]; do
+              sleep 5
+              IP=$(kubectl get ingress -n registry local -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            done
+            kubectl patch -n registry ingress local --type json --patch '[{"op": "replace", "path": "/spec/rules/0/host", "value": "'${IP}'.nip.io"},{"op":"add","path":"/spec/tls", "value":[{"hosts":["'${IP}'.nip.io"],"secretName":"ingress-cert"}]}]'
+            kubectl create configmap -n registry ingress-address --from-literal address="${IP}.nip.io" --from-literal ip="$IP"
+      restartPolicy: Never
+

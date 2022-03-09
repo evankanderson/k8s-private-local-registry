@@ -1,0 +1,27 @@
+---
+# Source: docker-registry/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: local
+  namespace: registry
+  labels:
+    app: local
+    chart: docker-registry-2.1.0
+    release: local
+    heritage: Helm
+  annotations:
+    cert-manager.io/issuer: "selfsigned-issuer"
+    cert-manager.io/common-name: local.registry.svc
+spec:
+  rules:
+    - host: chart-example.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: local
+                port:
+                  number: 5000

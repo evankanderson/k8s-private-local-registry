@@ -7,10 +7,15 @@ persistence:
   enabled: true
   size: 200G
 namespace: registry
-tlsSecretName: registry-cert
-service:
-  port: 443
+# tlsSecretName: registry-cert
+# service:
+#   port: 443
 nameOverride: local
+ingress:
+  enabled: true
+  className: ""  # Use cluster default
+  annotations:
+    cert-manager.io/issuer: selfsigned-issuer
 # ingress:
 #   enabled: true
 #   className: ""  # Use cluster default
