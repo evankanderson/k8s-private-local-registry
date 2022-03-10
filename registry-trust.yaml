@@ -25,8 +25,10 @@ spec:
           - bash
           - "-c"
           - |
-            cp -f /cert/ca.crt /docker-cert/ca.crt
-            cp -f /cert/ca.crt /crio-cert/ca.crt
+            mkdir -p -m 755 /docker-cert/$REGISTRY_URL
+            cp -f /cert/ca.crt /docker-cert/$REGISTRY_URL/ca.crt
+            mkdir -p -m 755 /crio-cert/$REGISTRY_URL
+            cp -f /cert/ca.crt /crio-cert/$REGISTRY_URL/ca.crt
             if ! [ -f /etc/containerd/config.toml ]; then
               exit 0;  # No containerd
             fi
@@ -38,8 +40,8 @@ spec:
             if grep '\[.*\.registry.*\]' /etc/containerd/config.toml; then
               if ! fgrep '"local.registry.svc".tls' /etc/containerd/config.toml; then
                 cat <<EOF >> /etc/containerd/config.toml
-            [plugins."io.containerd.grpc.v1.cri".registry.configs."local.registry.svc".tls]
-            ca_file   = "/etc/docker/certs.d/local.registry.svc/ca.crt"
+            [plugins."io.containerd.grpc.v1.cri".registry.configs."$REGISTRY_URL".tls]
+            ca_file   = "/etc/docker/certs.d/$REGISTRY_URL/ca.crt"
             EOF
               else
                 exit 0  # Don't need to update config
@@ -55,8 +57,8 @@ spec:
             # Fall back to the registry method
             else
               cat <<EOF >> /etc/containerd/config.toml
-            [plugins."io.containerd.grpc.v1.cri".registry.configs."local.registry.svc".tls]
-            ca_file   = "/etc/docker/certs.d/local.registry.svc/ca.crt"
+            [plugins."io.containerd.grpc.v1.cri".registry.configs."$REGISTRY_URL".tls]
+            ca_file   = "/etc/docker/certs.d/$REGISTRY_URL/ca.crt"
             EOF
             #  fi
             fi
@@ -65,6 +67,12 @@ spec:
             nsenter --mount=/proc/1/ns/mnt -- systemctl status containerd
         securityContext:
           privileged: true
+        env:
+        - name: REGISTRY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ingress-address
+              key: address
         volumeMounts:
         - mountPath: /cert
           name: ca-cert
@@ -90,10 +98,10 @@ spec:
       volumes:
       - name: ca-cert
         secret:
-          secretName: registry-cert
+          secretName: ca-cert
       - name: docker-certs
         hostPath:
-          path: /etc/docker/certs.d/local.registry.svc
+          path: /etc/docker/certs.d/
           type: DirectoryOrCreate
       - name: crio-certs
         hostPath:

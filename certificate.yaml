@@ -6,7 +6,7 @@ metadata:
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: selfsigned-issuer
+  name: selfsigned-ca-issuer
   namespace: registry
 spec:
   selfSigned: {}
@@ -14,13 +14,20 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: registry-cert
+  name: ca-cert
   namespace: registry
 spec:
-  dnsNames:
-  - local.registry.svc
+  isCA: true
+  commonName: registry-selfsigned
+  secretName: ca-cert
   issuerRef:
-    group: cert-manager.io
-    kind: Issuer
-    name: selfsigned-issuer
-  secretName: registry-cert
+    name: selfsigned-ca-issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+  namespace: registry
+spec:
+  ca:
+    secretName: ca-cert

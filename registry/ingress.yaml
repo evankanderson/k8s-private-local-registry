@@ -12,7 +12,8 @@ metadata:
     heritage: Helm
   annotations:
     cert-manager.io/issuer: "selfsigned-issuer"
-    cert-manager.io/common-name: local.registry.svc
+#    cert-manager.io/common-name: local.registry.svc
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
 spec:
   rules:
     - host: chart-example.local

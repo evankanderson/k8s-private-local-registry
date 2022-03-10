@@ -48,7 +48,8 @@ spec:
               sleep 5
               IP=$(kubectl get ingress -n registry local -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
             done
-            kubectl patch -n registry ingress local --type json --patch '[{"op": "replace", "path": "/spec/rules/0/host", "value": "'${IP}'.nip.io"},{"op":"add","path":"/spec/tls", "value":[{"hosts":["'${IP}'.nip.io"],"secretName":"ingress-cert"}]}]'
-            kubectl create configmap -n registry ingress-address --from-literal address="${IP}.nip.io" --from-literal ip="$IP"
+            ADDRESS="registry.${IP}.nip.io"
+            kubectl patch -n registry ingress local --type json --patch '[{"op": "replace", "path": "/spec/rules/0/host", "value": "'${ADDRESS}'"},{"op":"add","path":"/spec/tls", "value":[{"hosts":["'${ADDRESS}'"],"secretName":"ingress-cert"}]}]'
+            kubectl create configmap -n registry ingress-address --from-literal address="${ADDRESS}" --from-literal ip="$IP"
       restartPolicy: Never
 
