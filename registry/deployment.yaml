@@ -24,7 +24,7 @@ spec:
         release: local
       annotations:
         checksum/config: 042402c17f5d8f8d60d32ad22af536e82d105e0e5d4308c9ef50209c470e806a
-        checksum/secret: f59099c9f6472745284c697fe149a64d83bc86c869ec355ccd1c388b681c234c
+        checksum/secret: af5da08065442939d38b1cf32d6c97e0d858a7b2d4f9c9d1ec503e32349e6511
     spec:
       securityContext:
         fsGroup: 1000
