@@ -7,24 +7,13 @@ persistence:
   enabled: true
   size: 200G
 namespace: registry
-# tlsSecretName: registry-cert
-# service:
-#   port: 443
 nameOverride: local
+configData:
+  validation:
+    disabled: true  # Needed to accept imgpkg copies
 ingress:
   enabled: true
   className: ""  # Use cluster default
   annotations:
     cert-manager.io/issuer: selfsigned-issuer
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
-# ingress:
-#   enabled: true
-#   className: ""  # Use cluster default
-#   annotations:
-#     cert-manager.io/issuer: local-registry-ca
-#   hosts:
-#   - local.registry.svc
-#   tls:
-#   - hosts:
-#     - local.registry.svc
-#     secretName: registry-cert
