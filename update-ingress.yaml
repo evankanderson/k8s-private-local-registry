@@ -10,7 +10,7 @@ rules:
   verbs: ["get","patch"]
 - apiGroups: [""]
   resources: ["configmaps"]
-  verbs: ["create", "update"]
+  verbs: ["create", "update", "get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -43,13 +43,29 @@ spec:
         args:
           - "-c"
           - |
-            IP=""
-            while [ -z "$IP" ]; do
+            ADDR=""
+            while [ -z "$ADDR" ]; do
               sleep 5
-              IP=$(kubectl get ingress -n registry local -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+              ADDR=$(kubectl get ingress -n registry local -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+              if [ -z "$ADDR" ]; then
+                ADDR=$(kubectl get ingress -n registry local -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+              fi
             done
+            echo "Ingress has address ${ADDR}"
+
+            # Our image doesn't have tools like nslookup, so connect to the
+            # IP and use /proc/net/tcp to read out the remote IP address.
+            exec 3<>/dev/tcp/${ADDR}/80
+            REMOTE_HEX=$(cat /proc/net/tcp | tail -n 1 | cut -d\  -f 6 | cut -d: -f1)
+            exec 3>&-  # Close socket
+            octet() { echo -n "$((16#$(echo $REMOTE_HEX | cut -c $1)))"; }
+            # <3 /proc/net/tcp uses little-endian IP addresses, just because <3
+            IP="$(octet 7-8).$(octet 5-6).$(octet 3-4).$(octet 1-2)"
             ADDRESS="registry.${IP}.nip.io"
+            echo "Updating host to ${ADDRESS}"
+
             kubectl patch -n registry ingress local --type json --patch '[{"op": "replace", "path": "/spec/rules/0/host", "value": "'${ADDRESS}'"},{"op":"add","path":"/spec/tls", "value":[{"hosts":["'${ADDRESS}'"],"secretName":"ingress-cert"}]}]'
             kubectl create configmap -n registry ingress-address --from-literal address="${ADDRESS}" --from-literal ip="$IP"
+            kubectl get configmap -n registry ingress-address -o yaml
       restartPolicy: Never
 
